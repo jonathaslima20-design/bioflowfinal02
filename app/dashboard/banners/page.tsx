@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { GripVertical, Plus, Trash2, Upload, Image as ImageIcon } from 'lucide-react';
+import { GripVertical, Plus, Trash2, Upload, Image as ImageIcon, Info } from 'lucide-react';
 
 type Banner = {
   id: string;
@@ -13,7 +13,17 @@ type Banner = {
   is_active: boolean;
 };
 
-const SIZES: Array<Banner['size']> = ['sm', 'md', 'lg'];
+const SIZES: Array<{ value: Banner['size']; label: string; hint: string; dims: string }> = [
+  { value: 'sm', label: 'Pequeno', hint: 'Faixa fina, ideal para separadores ou logos.',      dims: '1200 × 96 px'  },
+  { value: 'md', label: 'Médio',   hint: 'Tamanho padrão, bom para banners promocionais.',    dims: '1200 × 160 px' },
+  { value: 'lg', label: 'Grande',  hint: 'Destaque máximo, ideal para hero banners.',         dims: '1200 × 240 px' },
+];
+
+const PREVIEW_HEIGHT: Record<Banner['size'], string> = {
+  sm: 'h-24',
+  md: 'h-40',
+  lg: 'h-60',
+};
 
 export default function BannersPage() {
   const [profileId, setProfileId] = useState('');
@@ -110,71 +120,84 @@ export default function BannersPage() {
             <p className="font-bold">Nenhum banner ainda.</p>
           </div>
         )}
-        {banners.map(b => (
-          <div
-            key={b.id}
-            draggable
-            onDragStart={() => setDragging(b.id)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => onDrop(b.id)}
-            className="brutal-card p-4"
-          >
-            <div className="flex items-start gap-3">
-              <GripVertical className="w-5 h-5 mt-3 cursor-grab text-black/60" />
-              <div className="flex-1 flex flex-col gap-2">
-                {b.image_url ? (
-                  <div className="brutal-border overflow-hidden">
-                    <img src={b.image_url} alt="" className="w-full h-40 object-cover" />
+        {banners.map(b => {
+          const sizeInfo = SIZES.find(s => s.value === b.size) ?? SIZES[1];
+          const previewHeight = PREVIEW_HEIGHT[b.size] ?? PREVIEW_HEIGHT.md;
+          return (
+            <div
+              key={b.id}
+              draggable
+              onDragStart={() => setDragging(b.id)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => onDrop(b.id)}
+              className="brutal-card p-4"
+            >
+              <div className="flex items-start gap-3">
+                <GripVertical className="w-5 h-5 mt-3 cursor-grab text-black/60" />
+                <div className="flex-1 flex flex-col gap-2">
+                  {b.image_url ? (
+                    <div className={`brutal-border overflow-hidden transition-all duration-200 ${previewHeight}`}>
+                      <img src={b.image_url} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className={`brutal-border flex items-center justify-center bg-white transition-all duration-200 ${previewHeight}`}>
+                      <span className="text-xs font-bold text-black/50">Sem imagem</span>
+                    </div>
+                  )}
+                  <input
+                    ref={el => (fileInputs.current[b.id] = el)}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) onFile(b.id, f); }}
+                  />
+                  <button
+                    onClick={() => fileInputs.current[b.id]?.click()}
+                    disabled={uploading === b.id}
+                    className="brutal-btn bg-white px-3 py-2 text-sm gap-2 disabled:opacity-60"
+                  >
+                    <Upload className="w-4 h-4" /> {uploading === b.id ? 'Enviando...' : b.image_url ? 'Trocar imagem' : 'Enviar imagem'}
+                  </button>
+                  <input
+                    value={b.link_url}
+                    onChange={e => update(b.id, { link_url: e.target.value })}
+                    className="brutal-input px-3 py-2 text-sm"
+                    placeholder="Link de destino (opcional)"
+                  />
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex gap-1">
+                        {SIZES.map(s => (
+                          <button
+                            key={s.value}
+                            onClick={() => update(b.id, { size: s.value })}
+                            className={`brutal-border px-3 py-1 text-xs font-bold ${b.size === s.value ? 'bg-bioblue text-white' : 'bg-white'}`}
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                      <label className="flex items-center gap-2 text-xs font-bold">
+                        <input type="checkbox" checked={b.is_active} onChange={e => update(b.id, { is_active: e.target.checked })} />
+                        Ativo
+                      </label>
+                    </div>
+                    <div className="flex items-start gap-2 bg-black/5 brutal-border px-3 py-2">
+                      <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-black/50" />
+                      <p className="text-xs text-black/60 leading-snug">
+                        <span className="font-bold text-black/80">{sizeInfo.label} — {sizeInfo.dims}.</span>{' '}
+                        {sizeInfo.hint}
+                      </p>
+                    </div>
                   </div>
-                ) : (
-                  <div className="brutal-border h-40 flex items-center justify-center bg-white">
-                    <span className="text-xs font-bold text-black/50">Sem imagem</span>
-                  </div>
-                )}
-                <input
-                  ref={el => (fileInputs.current[b.id] = el)}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) onFile(b.id, f); }}
-                />
-                <button
-                  onClick={() => fileInputs.current[b.id]?.click()}
-                  disabled={uploading === b.id}
-                  className="brutal-btn bg-white px-3 py-2 text-sm gap-2 disabled:opacity-60"
-                >
-                  <Upload className="w-4 h-4" /> {uploading === b.id ? 'Enviando...' : b.image_url ? 'Trocar imagem' : 'Enviar imagem'}
-                </button>
-                <input
-                  value={b.link_url}
-                  onChange={e => update(b.id, { link_url: e.target.value })}
-                  className="brutal-input px-3 py-2 text-sm"
-                  placeholder="Link de destino (opcional)"
-                />
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex gap-1">
-                    {SIZES.map(s => (
-                      <button
-                        key={s}
-                        onClick={() => update(b.id, { size: s })}
-                        className={`brutal-border px-3 py-1 text-xs font-bold uppercase ${b.size === s ? 'bg-bioblue text-white' : 'bg-white'}`}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                  <label className="flex items-center gap-2 text-xs font-bold">
-                    <input type="checkbox" checked={b.is_active} onChange={e => update(b.id, { is_active: e.target.checked })} />
-                    Ativo
-                  </label>
                 </div>
+                <button onClick={() => remove(b.id)} className="brutal-btn bg-white w-9 h-9">
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-              <button onClick={() => remove(b.id)} className="brutal-btn bg-white w-9 h-9">
-                <Trash2 className="w-4 h-4" />
-              </button>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
